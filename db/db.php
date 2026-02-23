@@ -19,5 +19,5 @@ if (!$conn) {
     die("Database connection failed: " . mysqli_connect_error());
 }
 
-echo "Database Connected Successfully";
+echo "<script>alert('Connected successfully to the database.');</script>";
 ?>
