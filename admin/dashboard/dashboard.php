@@ -1,18 +1,131 @@
 <?php
-        include "../../db/db.php";
-        ?>
+    include "../../db/db.php";
+?>
+
+<?php
+    //total books count
+    $totalBooksSql = "SELECT COUNT(*) AS total_books FROM books";
+    $totalBooksResult = mysqli_query($conn, $totalBooksSql);
+    $totalBooks = 0;
+    if ($totalBooksResult && $totalBooksResult->num_rows > 0) {
+        $row = mysqli_fetch_assoc($totalBooksResult);
+        $totalBooks = $row['total_books'];
+    }
+
+    //total categories count
+    $totalCategoriesSql = "SELECT COUNT(DISTINCT category) AS total_categories FROM books";
+    $totalCategoriesResult = mysqli_query($conn, $totalCategoriesSql);
+    $totalCategories = 0;
+    if ($totalCategoriesResult && $totalCategoriesResult->num_rows > 0) {
+        $row = mysqli_fetch_assoc($totalCategoriesResult);
+        $totalCategories = $row['total_categories'];
+    }
+?>
+
+<?php
+    //all books
+    $allBooksSql = "SELECT * FROM books";
+    $allBooksResult = mysqli_query($conn, $allBooksSql);
+    $books = [];
+    if ($allBooksResult && $allBooksResult->num_rows > 0) {
+        while ($row = mysqli_fetch_assoc($allBooksResult)) {
+            $books[] = $row;
+        }
+    }
+
+    //search functionality
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search_submit'])) {
+        $searchTerm = $_POST['search'] ?? '';
+        $searchTermEscaped = mysqli_real_escape_string($conn, $searchTerm);
+        $searchSql = "SELECT * FROM books WHERE name LIKE '%$searchTermEscaped%'";
+        $searchResult = mysqli_query($conn, $searchSql);
+        $books = [];
+        if ($searchResult && $searchResult->num_rows > 0) {
+            while ($row = mysqli_fetch_assoc($searchResult)) {
+                $books[] = $row;
+            }
+        } else {
+            $books = [];
+        }
+    }
+
+    //delete book functionality
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_book_submit'])) {
+        $deleteBookId = $_POST['delete_book_id'] ?? '';
+        if (!empty($deleteBookId)) {
+            $deleteSql = "DELETE FROM books WHERE id='$deleteBookId'";
+            mysqli_query($conn, $deleteSql);
+            header('Location: ' . $_SERVER['PHP_SELF']);
+            exit;
+        }
+    }
+?>
+
+<?php
+    if (isset($_GET['success'])) {
+        echo "<script>alert('Book added successfully');</script>";
+    }
+?>
+
 <?php
 $showPopup = false;
 
-// When the Add-card button is clicked (opens popup)
+// open popup
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['open_add_popup'])) {
     $showPopup = true;
 }
 
-// When the popup form is submitted to actually add the book
+// add book
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_book_submit'])) {
-    header('Location: ' . $_SERVER['PHP_SELF']);
-    exit;
+    $name = $_POST["name"] ?? '';
+    $author = $_POST["author"] ?? '';
+    $category = $_POST["category"] ?? '';
+
+    if(empty($name) || empty($author) || empty($category)) {
+        echo "All fields are required.";
+        exit();
+    }
+
+    $tableSql = "CREATE TABLE IF NOT EXISTS books (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        author VARCHAR(255) NOT NULL,
+        category VARCHAR(255) NOT NULL,
+        image_path VARCHAR(255) NOT NULL,
+        pdf_path VARCHAR(255) NULL
+    )";
+
+    if (!mysqli_query($conn, $tableSql)) {
+        echo "Error creating table: " . mysqli_error($conn);
+        exit();
+    }
+    if(empty($_FILES["image"]["name"])) {
+        echo "Image file is required.";
+        exit();
+    }
+    $imageFileName = $_FILES["image"]["name"] ?? '';
+    $imageTmpName = $_FILES["image"]["tmp_name"] ?? '';
+    $targetImagePath = "../../assets/images/" . basename($imageFileName);
+
+    $pdfFileName = $_FILES["pdf"]["name"] ?? '';
+    $pdfTmpName = $_FILES["pdf"]["tmp_name"] ?? '';
+    $targetPdfPath = "";
+
+    if(!empty($pdfFileName)){
+        $targetPdfPath = "../../assets/pdfs/" . basename($pdfFileName);
+    }
+
+    if(move_uploaded_file($imageTmpName, $targetImagePath) && ( empty($pdfFileName) || move_uploaded_file($pdfTmpName, $targetPdfPath) )) {
+        $insertSql = "INSERT INTO books (name, author, category, image_path, pdf_path) VALUES ('$name', '$author', '$category', '$targetImagePath', '$targetPdfPath')";
+        if (mysqli_query($conn, $insertSql)) {
+            header("Location: ".$_SERVER['PHP_SELF']."?success=1");
+            exit();
+        } else {
+            echo "Error: " . $insertSql . "<br>" . mysqli_error($conn);
+        }
+    } else {
+        echo "Error uploading files.";
+    }
 }
 ?>
 
@@ -606,11 +719,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_book_submit'])) {
                     </button>
                 </form>
                 <div class="card">
-                    <p class="card-number">2</p>
+                    <p class="card-number">
+                        <?php echo $totalBooks; ?>
+                    </p>
                     <p class="card-label">total books</p>
                 </div>
                 <div class="card">
-                    <p class="card-number">2</p>
+                    <p class="card-number">
+                        <?php echo $totalCategories; ?>
+                    </p>
                     <p class="card-label">categories</p>
                 </div>
                 <div class="card">
@@ -622,9 +739,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_book_submit'])) {
             <section class="list-section">
                 <div class="list-header">
                     <p class="intro">Welcome to the Library. Here you can find resources, books, and study materials.</p>
-                    <form class="search-form">
-                        <input type="text" placeholder="Search books..." class="searchInput" />
-                        <button type="submit" class="primary-btn">Submit</button>
+                    <form class="search-form" method="post">
+                        <input type="text" name="search" placeholder="Search books by name..." class="searchInput" />
+                        <button type="submit" class="primary-btn" name="search_submit">Submit</button>
                     </form>
                 </div>
 
@@ -641,22 +758,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_book_submit'])) {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td class="table-body" id="B-1">B001</td>
-                                <td class="table-body" id="B-name-1">Introduction to Computer Science</td>
-                                <td class="table-body" id="B-author-1">David Evans</td>
-                                <td class="table-body" id="B-category-1">Computer Science</td>
-                                <td class="table-body" id="B-pdf-1">NA</td>
-                                <td class="table-body" id="BB-delete-"><button type="button">Delete</button></td>
-                            </tr>
-                            <tr>
-                                <td class="table-body" id="B-2">B002</td>
-                                <td class="table-body" id="B-name-2">Advanced Mathematics</td>
-                                <td class="table-body" id="B-author-2">Dr. NDAYAMBAJE</td>
-                                <td class="table-body" id="B-category-2">Formal Science</td>
-                                <td class="table-body" id="B-pdf-2"><a href="https://www.bayes.citystgeorges.ac.uk/__data/assets/pdf_file/0008/101213/Advanced-Maths.pdf" target="_blank">View PDF</a></td>
-                                <td class="table-body" id="BB-delete"><button type="button">Delete</button></td>
-                            </tr>
+                            <?php foreach ($books as $book): ?>
+                                <tr>
+                                    <td class="table-body" id="B-<?php echo $book['id']; ?>"><?php echo $book['id']; ?></td>
+                                    <td class="table-body" id="B-name-<?php echo $book['id']; ?>"><?php echo $book['name']; ?></td>
+                                    <td class="table-body" id="B-author-<?php echo $book['id']; ?>"><?php echo $book['author']; ?></td>
+                                    <td class="table-body" id="B-category-<?php echo $book['id']; ?>"><?php echo $book['category']; ?></td>
+                                    <td class="table-body" id="B-pdf-<?php echo $book['id']; ?>">
+                                        <?php if (!empty($book['pdf_path'])): ?>
+                                            <a href="<?php echo $book['pdf_path']; ?>" target="_blank">View PDF</a>
+                                        <?php else: ?>
+                                            NA
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="table-body" id="BB-delete-<?php echo $book['id']; ?>">
+                                        <form method="post" onsubmit="return confirm('Are you sure you want to delete this book?');">
+                                            <input type="hidden" name="delete_book_id" value="<?php echo $book['id']; ?>">
+                                            <button type="submit" name="delete_book_submit">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            
                         </tbody>
                     </table>
                 </div>
@@ -667,17 +790,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_book_submit'])) {
 
     <?php if ($showPopup): ?>
   <div class="popup-overlay">
-
-    <!-- Clicking this link reloads the page and (since $showPopup is false on normal GET)
-         the popup will not render after navigation. Use PHP_SELF to point to current page. -->
     <a class="overlay-close" href="<?php echo htmlspecialchars($_SERVER['PHP_SELF']); ?>">Close popup</a>
 
     <div class="popup-container">
-      <!-- Popup's own form: enctype needed for file uploads -->
       <form class="popup-form" method="post" enctype="multipart/form-data">
-
-        <label class="form-label">Book ID</label>
-        <input class="text-input" type="text" name="book_id" required>
 
         <label class="form-label">Name</label>
         <input class="text-input" type="text" name="name" required>
@@ -691,8 +807,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_book_submit'])) {
         <label class="file-box" for="image">Click to upload book image</label>
         <input class="file-input" type="file" name="image" id="image">
 
-        <label class="file-box" for="add_book">Click to upload book PDF</label>
-        <input class="file-input" type="file" name="add_book" id="add_book">
+        <label class="file-box" for="pdf">Click to upload book PDF</label>
+        <input class="file-input" type="file" name="pdf" id="pdf">
 
         <button class="submit-btn" type="submit" name="add_book_submit">Submit</button>
 
