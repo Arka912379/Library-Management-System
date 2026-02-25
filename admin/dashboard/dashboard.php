@@ -119,18 +119,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_book_submit'])) {
     }
     $imageFileName = $_FILES["image"]["name"] ?? '';
     $imageTmpName = $_FILES["image"]["tmp_name"] ?? '';
-    $targetImagePath = "../../assets/images/" . basename($imageFileName);
+    $targetImagePath = "../../assets/images/" . $imageFileName;
 
     $pdfFileName = $_FILES["pdf"]["name"] ?? '';
     $pdfTmpName = $_FILES["pdf"]["tmp_name"] ?? '';
     $targetPdfPath = "";
 
     if(!empty($pdfFileName)){
-        $targetPdfPath = "../../assets/pdfs/" . basename($pdfFileName);
+        $targetPdfPath = "../../assets/pdfs/" . $pdfFileName;
     }
 
     if(move_uploaded_file($imageTmpName, $targetImagePath) && ( empty($pdfFileName) || move_uploaded_file($pdfTmpName, $targetPdfPath) )) {
-        $insertSql = "INSERT INTO books (name, author, category, image_path, pdf_path) VALUES ('$name', '$author', '$category', '$targetImagePath', '$targetPdfPath')";
+        $insertSql = "INSERT INTO books (name, author, category, image_path, pdf_path) VALUES ('$name', '$author', '$category', '$imageFileName', '$pdfFileName')";
         if (mysqli_query($conn, $insertSql)) {
             header("Location: ".$_SERVER['PHP_SELF']."?success=1");
             exit();
