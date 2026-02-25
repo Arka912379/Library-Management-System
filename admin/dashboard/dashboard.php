@@ -126,11 +126,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_book_submit'])) {
     $targetPdfPath = "";
 
     if(!empty($pdfFileName)){
-        $targetPdfPath = "../../assets/pdfs/" . $pdfFileName;
+        $targetPdfPath = "../../assets/pdfs/" . basename($pdfFileName);
     }
 
     if(move_uploaded_file($imageTmpName, $targetImagePath) && ( empty($pdfFileName) || move_uploaded_file($pdfTmpName, $targetPdfPath) )) {
-        $insertSql = "INSERT INTO books (name, author, category, image_path, pdf_path) VALUES ('$name', '$author', '$category', '$imageFileName', '$pdfFileName')";
+        $insertSql = "INSERT INTO books (name, author, category, image_path, pdf_path) VALUES ('$name', '$author', '$category', '$imageFileName', '$targetPdfPath')";
         if (mysqli_query($conn, $insertSql)) {
             header("Location: ".$_SERVER['PHP_SELF']."?success=1");
             exit();
